@@ -5,5 +5,9 @@
     "csv-writer": "^1.6.0",
     "fs": "^0.0.1-security",
     "xlsx": "^0.18.5"
+  },
+  "scripts": {
+    "start": "node app.js",
+    "develop": "npm start"
   }
 }
