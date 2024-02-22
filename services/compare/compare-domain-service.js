@@ -7,46 +7,8 @@ const fs = require('fs');
 const csvParser = require('csv-parser');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const path = require('path');
-
 const filePath = path.join(__dirname, '../../testfiles/file/brand-collector.csv');
 const origFilePath = path.join(__dirname, '../../testfiles/orig/same/brand-collector.csv');
-
-bigCheck(filePath, origFilePath);
-// getFileInfo(origFilePath)
-//     .then(({ rowCount, columnCount }) => console.log(`File info: Rows - ${rowCount}, Columns - ${columnCount}`))
-//     .catch(error => console.error(`Error: ${error.message}`));
-
-// getFileInfo(filePath)
-//     .then(({ rowCount, columnCount }) => console.log(`File info: Rows - ${rowCount}, Columns - ${columnCount}`))
-//     .catch(error => console.error(`Error: ${error.message}`));
-
-
-async function getFileInfo(filePath) {
-    try {
-        const readStream = fs.createReadStream(filePath);
-        let rowCount = 0;
-        let columnCount = 0;
-
-        await new Promise((resolve, reject) => {
-            readStream
-                .pipe(csvParser())
-                .on('data', () => {
-                    rowCount += 1; 
-                })
-                .on('headers', (headers) => {
-                    columnCount = headers.length; 
-                })
-                .on('end', () => {
-                    resolve({ rowCount, columnCount });
-                })
-                .on('error', reject);
-        });
-
-        return { rowCount, columnCount };
-    } catch (error) {
-        throw new Error(`Error reading file: ${error.message}`);
-    }
-}
 
 async function readCSVFile(filePath) {
     return new Promise((resolve, reject) => {
@@ -169,7 +131,7 @@ async function bigCheck(filePath, origFilePath) {
     }
 }
 
-//Проверка файлов на Equal. Фиксация различий.
+//Проверка файлов на Equal. Фиксация различий (все функции ниже взаимодействуют между собой).
 async function sameCheck(filePath, origFilePath) {
     try {
         const differingCells = await compareIfEqual(filePath, origFilePath);
@@ -248,6 +210,13 @@ function findDifferingCells(row1, row2) {
 
     return differingCells;
 }
+
+module.exports = {
+    emptyCheck,
+    sameCheck,
+    deleteCheck,
+    bigCheck,
+  };
 
 
 
