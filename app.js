@@ -1,10 +1,10 @@
 const path = require('path');
 const apiKey = 'https://backoffice.thebrandcollector.com/api/v1/herage/csv/';
-const { downloadFile } = require(path.join(__dirname,'services', 'download', 'download-file.js'));
 const downloadPath = path.join(__dirname,'downloads');
 const outputCsvPath = path.join(__dirname,'output','brand-collector.csv');
-const { convertXlsxToCsv } = require(path.join(__dirname,'services','convert','converter-service.js'));
 const origFilePath = path.join(__dirname, 'testfiles','orig','same','brand-collector.csv');
+const { downloadFile } = require(path.join(__dirname,'services', 'download', 'download-file.js'));
+const { convertXlsxToCsv } = require(path.join(__dirname,'services','convert','converter-service.js'));
 const { getCompare } = require(path.join(__dirname,'services','compare','compare-service.js'));
 
 

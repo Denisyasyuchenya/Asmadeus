@@ -7,7 +7,7 @@ const { emptyCheck, sameCheck, deleteCheck, bigCheck } = require(path.join(__dir
 async function getCompare(outputCsvPath, origFilePath) {
     try {
         console.log('Checking for empty data...');
-        const isEmpty = await emptyCheck(origFilePath);
+        const isEmpty = await emptyCheck(outputCsvPath);
 
         if (isEmpty) {
             console.log('File is empty. Exiting comparison.');

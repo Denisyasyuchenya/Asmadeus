@@ -1,14 +1,7 @@
-// function, считающая количество строк (для проверки правильности переноса данных)
-// function, считающая количество столбцов (для проверки правильности переноса данных)
-// если есть измененное название колонок, то пусть остаётся колонка, которая есть в нашем файле.
-// новые изменения после добавления должны находиться в начале файла.
-
 const fs = require('fs');
 const csvParser = require('csv-parser');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const path = require('path');
-const filePath = path.join(__dirname, '../../testfiles/file/brand-collector.csv');
-const origFilePath = path.join(__dirname, '../../testfiles/orig/same/brand-collector.csv');
 
 async function readCSVFile(filePath) {
     return new Promise((resolve, reject) => {
@@ -28,24 +21,24 @@ async function readCSVFile(filePath) {
     });
 }
 
-async function emptyCheck(origFilePath) {
+async function emptyCheck(outputCsvPath) {
     try {
-        const emptyFileData = await readCSVFile(origFilePath);
+        const emptyFileData = await readCSVFile(outputCsvPath);
 
         if (emptyFileData.length === 0) {
-            console.log(`File ${origFilePath} is empty.`);
+            console.log(`File ${outputCsvPath} is empty.`);
         } else {
-            console.log(`File ${origFilePath} is not empty.`);
+            console.log(`File ${outputCsvPath} is not empty.`);
         }
     } catch (error) {
         console.error(`Error checking file: ${error.message}`);
     }
 }
 
-async function deleteCheck(filePath, origFilePath) {
+async function deleteCheck(outputCsvPath, origFilePath) {
     try {
-        // Читаем данные из файла filePath
-        const filePathData = await readCSVFile(filePath);
+        // Читаем данные из файла outputCsvPath
+        const filePathData = await readCSVFile(outputCsvPath);
 
         // Читаем данные из файла origFilePath
         const origFilePathData = await readCSVFile(origFilePath);
@@ -81,7 +74,7 @@ async function deleteCheck(filePath, origFilePath) {
 
             // Записываем обновленные данные обратно в файл filePath
             const csvWriterInstance = createCsvWriter({
-                path: filePath,
+                path: outputCsvPath,
                 header: Object.keys(filePathData[0]).map((header) => ({ id: header, title: header })),
             });
             await csvWriterInstance.writeRecords(filePathData);
@@ -95,32 +88,35 @@ async function deleteCheck(filePath, origFilePath) {
     }
 }
 
-async function bigCheck(filePath, origFilePath) {
+// const outputCsvPath = path.join(__dirname,'..','..','output','brand-collector.csv');
+// const origFilePath = path.join(__dirname, '..','..','testfiles','orig','big','brand-collector.csv');
+// bigCheck(outputCsvPath, origFilePath);
+async function bigCheck(outputCsvPath, origFilePath) {
     try {
         // Читаем данные из файла filePath
-        const filePathData = await readCSVFile(filePath);
+        const outputCsvData = await readCSVFile(outputCsvPath);
 
         // Читаем данные из файла origFilePath
-        const origFilePathData = await readCSVFile(origFilePath);
+        const origFileData = await readCSVFile(origFilePath);
 
-        // Находим записи в origFilePathData, которых нет в filePathData
-        const newRows = origFilePathData.filter((origRow) => {
-            return !filePathData.some((fileRow) => fileRow['Handle'] === origRow['Handle']);
+        // Находим записи в origFileData, которых нет outputCvPath
+        const newRows = origFileData.filter((origRow) => {
+            return !outputCsvData.some((fileRow) => fileRow['Handle'] === origRow['Handle']);
         });
 
         // Если есть новые записи
         if (newRows.length > 0) {
             console.log('New rows found in the original file.');
             
-            // Добавляем новые записи в filePathData
-            filePathData.push(...newRows);
+            // Добавляем новые записи в outputCsvData
+            outputCsvData.push(...newRows);
 
-            // Записываем обновленные данные обратно в файл filePath
+            // Записываем обновленные данные обратно в файл outputCsvPath
             const csvWriterInstance = createCsvWriter({
-                path: filePath,
-                header: Object.keys(filePathData[0]).map((header) => ({ id: header, title: header })),
+                path: outputCsvPath,
+                header: Object.keys(outputCsvData[0]).map((header) => ({ id: header, title: header })),
             });
-            await csvWriterInstance.writeRecords(filePathData);
+            await csvWriterInstance.writeRecords(outputCsvData);
 
             console.log('CSV files compared and updated successfully.');
         } else {
@@ -132,9 +128,13 @@ async function bigCheck(filePath, origFilePath) {
 }
 
 //Проверка файлов на Equal. Фиксация различий (все функции ниже взаимодействуют между собой).
-async function sameCheck(filePath, origFilePath) {
+// const outputCsvPath = path.join(__dirname,'..','..','output','brand-collector.csv');
+// const origFilePath = path.join(__dirname, '..','..','testfiles','orig','same','brand-collector.csv');
+// sameCheck(outputCsvPath, origFilePath);
+
+async function sameCheck(outputCsvPath, origFilePath) {
     try {
-        const differingCells = await compareIfEqual(filePath, origFilePath);
+        const differingCells = await compareIfEqual(outputCsvPath, origFilePath);
 
         if (!differingCells) {
             console.log('Equal data');
@@ -147,8 +147,8 @@ async function sameCheck(filePath, origFilePath) {
     }
 }
 
-async function compareIfEqual(filePath, origFilePath) {
-    const fileData = await readCSVFile(filePath);
+async function compareIfEqual(outputCsvPath, origFilePath) {
+    const fileData = await readCSVFile(outputCsvPath);
     const origFileData = await readCSVFile(origFilePath);
 
     if (fileData.length !== origFileData.length) {
@@ -210,6 +210,8 @@ function findDifferingCells(row1, row2) {
 
     return differingCells;
 }
+
+
 
 module.exports = {
     emptyCheck,
