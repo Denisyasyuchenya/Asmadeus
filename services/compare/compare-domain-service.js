@@ -1,8 +1,3 @@
-const fs = require('fs');
-const csvParser = require('csv-parser');
-const createCsvWriter = require('csv-writer').createObjectCsvWriter;
-const path = require('path');
-
 async function readCSVFile(filePath) {
     return new Promise((resolve, reject) => {
         const data = [];
@@ -35,49 +30,74 @@ async function emptyCheck(outputCsvPath) {
     }
 }
 
+const fs = require('fs');
+const csvParser = require('csv-parser');
+const createCsvWriter = require('csv-writer').createObjectCsvWriter;
+const path = require('path');
+const outputCsvPath = path.join(__dirname,'..','..','output','brand-collector.csv');
+const origFilePath = path.join(__dirname,'..','..','testfiles','orig','delete','brand-collector.csv');
+const dataBasePath = path.join(__dirname,'..', 'db', 'changes.db');
+const { connectToDB, disconnectFromDB } = require(path.join(__dirname,'..','db','db-service.js'));
+const { createFileLinkTable, createLogTable} = require(path.join(__dirname,'..','db','create-tables.js'));
+const { addDeleteToLog } = require(path.join(__dirname,'..','db','db-changes.js'));
+
+deleteCheck(outputCsvPath, origFilePath);
+
 async function deleteCheck(outputCsvPath, origFilePath) {
+    // Подключаемся к базе данных
+    const dbConnection = connectToDB(dataBasePath);
+
     try {
+        // Создаем необходимые таблицы в базе данных
+        const db = await dbConnection; // Ожидаем разрешения обещания, чтобы убедиться, что db определен
+        createFileLinkTable(db);
+        createLogTable(db);
+
         // Читаем данные из файла outputCsvPath
-        const filePathData = await readCSVFile(outputCsvPath);
+        const outputPathData = await readCSVFile(outputCsvPath);
+
+        console.log('Output CSV data read.');
 
         // Читаем данные из файла origFilePath
         const origFilePathData = await readCSVFile(origFilePath);
 
-        // Находим наименования в filePathData, которых нет в origFilePathData
-        const missingHandles = filePathData
+        console.log('Original file CSV data read.');
+
+        // Находим наименования в origFilePathData, которых нет в outputPathData
+        const missingHandles = origFilePathData
             .map((row) => row['Handle'])
-            .filter((handle) => !origFilePathData.some((origRow) => origRow['Handle'] === handle));
+            .filter((handle) => !outputPathData.some((outputRow) => outputRow['Handle'] === handle));
+
+        console.log('Missing handles identified:', missingHandles);
 
         // Если есть отсутствующие наименования
         if (missingHandles.length > 0) {
             console.log('Missing handles found in the origFile:');
-            console.log(missingHandles);
 
             // Обрабатываем каждое отсутствующее наименование
-            missingHandles.forEach((missingHandle) => {
-                // Находим индекс соответствующей строки в файле filePath
-                const rowIndex = filePathData.findIndex((filePathRow) => filePathRow['Handle'] === missingHandle);
+            for (const missingHandle of missingHandles) {
+                console.log(`Processing handle: ${missingHandle}`);
+
+                // Находим индекс соответствующей строки в файле origFilePath
+                const rowIndex = origFilePathData.findIndex((origRow) => origRow['Handle'] === missingHandle);
 
                 // Изменяем значения в указанных столбцах
-                if (filePathData[rowIndex].published !== undefined) {
-                    filePathData[rowIndex].published = filePathData[rowIndex].published.trim().toUpperCase() === 'TRUE' ? 'FALSE' : 'TRUE';
+                if (origFilePathData[rowIndex].published !== undefined) {
+                    origFilePathData[rowIndex].published = origFilePathData[rowIndex].published.trim().toUpperCase() === 'TRUE' ? 'FALSE' : 'TRUE';
                 }               
 
-                if (filePathData[rowIndex].Status !== undefined) {
-                    filePathData[rowIndex].Status = filePathData[rowIndex].Status === 'Active' ? 'Draft' : 'Active';
+                if (origFilePathData[rowIndex].Status !== undefined) {
+                    origFilePathData[rowIndex].Status = origFilePathData[rowIndex].Status === 'Active' ? 'Draft' : 'Active';
                 }
 
-                if (filePathData[rowIndex]['Variant Inventory Qty'] !== undefined) {
-                    filePathData[rowIndex]['Variant Inventory Qty'] = filePathData[rowIndex]['Variant Inventory Qty'] === '1' ? '0' : '1';
+                if (origFilePathData[rowIndex]['Variant Inventory Qty'] !== undefined) {
+                    origFilePathData[rowIndex]['Variant Inventory Qty'] = origFilePathData[rowIndex]['Variant Inventory Qty'] === '1' ? '0' : '1';
                 }
-            });
 
-            // Записываем обновленные данные обратно в файл filePath
-            const csvWriterInstance = createCsvWriter({
-                path: outputCsvPath,
-                header: Object.keys(filePathData[0]).map((header) => ({ id: header, title: header })),
-            });
-            await csvWriterInstance.writeRecords(filePathData);
+                // Добавляем зафиксированные различия в таблицу лога базы данных
+                console.log(`Adding delete log for handle: ${missingHandle}`);
+                dbConnection = await addDeleteToLog(dbConnection, missingHandle, origFilePathData[rowIndex]);
+            }
 
             console.log('CSV files compared and updated successfully.');
         } else {
@@ -85,8 +105,13 @@ async function deleteCheck(outputCsvPath, origFilePath) {
         }
     } catch (error) {
         console.error(`Error comparing files: ${error.message}`);
+    } finally {
+        // Отключаемся от базы данных
+        console.log('Disconnecting from the database.');
+        disconnectFromDB(dbConnection);
     }
 }
+
 
 // const outputCsvPath = path.join(__dirname,'..','..','output','brand-collector.csv');
 // const origFilePath = path.join(__dirname, '..','..','testfiles','orig','big','brand-collector.csv');
