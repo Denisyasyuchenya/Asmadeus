@@ -39,29 +39,20 @@ const origFilePath = path.join(__dirname,'..','..','testfiles','orig','delete','
 const dataBasePath = path.join(__dirname,'..', 'db', 'changes.db');
 const { connectToDB, disconnectFromDB } = require(path.join(__dirname,'..','db','db-service.js'));
 const { createFileLinkTable, createLogTable} = require(path.join(__dirname,'..','db','create-tables.js'));
-const { addDeleteToLog } = require(path.join(__dirname,'..','db','db-changes.js'));
+const { addDeleteToDB } = require(path.join(__dirname,'..','db','db-changes.js'));
 
 deleteCheck(outputCsvPath, origFilePath);
 
 async function deleteCheck(outputCsvPath, origFilePath) {
-    // Подключаемся к базе данных
     const dbConnection = connectToDB(dataBasePath);
-
     try {
-        // Создаем необходимые таблицы в базе данных
-        const db = await dbConnection; // Ожидаем разрешения обещания, чтобы убедиться, что db определен
+        const db = await dbConnection;
         createFileLinkTable(db);
         createLogTable(db);
 
-        // Читаем данные из файла outputCsvPath
+        
         const outputPathData = await readCSVFile(outputCsvPath);
-
-        console.log('Output CSV data read.');
-
-        // Читаем данные из файла origFilePath
         const origFilePathData = await readCSVFile(origFilePath);
-
-        console.log('Original file CSV data read.');
 
         // Находим наименования в origFilePathData, которых нет в outputPathData
         const missingHandles = origFilePathData
@@ -84,7 +75,7 @@ async function deleteCheck(outputCsvPath, origFilePath) {
                 // Изменяем значения в указанных столбцах
                 if (origFilePathData[rowIndex].published !== undefined) {
                     origFilePathData[rowIndex].published = origFilePathData[rowIndex].published.trim().toUpperCase() === 'TRUE' ? 'FALSE' : 'TRUE';
-                }               
+                }
 
                 if (origFilePathData[rowIndex].Status !== undefined) {
                     origFilePathData[rowIndex].Status = origFilePathData[rowIndex].Status === 'Active' ? 'Draft' : 'Active';
@@ -96,7 +87,7 @@ async function deleteCheck(outputCsvPath, origFilePath) {
 
                 // Добавляем зафиксированные различия в таблицу лога базы данных
                 console.log(`Adding delete log for handle: ${missingHandle}`);
-                dbConnection = await addDeleteToLog(dbConnection, missingHandle, origFilePathData[rowIndex]);
+                await addDeleteToDB(db, missingHandle, origFilePathData[rowIndex], origFilePath);
             }
 
             console.log('CSV files compared and updated successfully.');
