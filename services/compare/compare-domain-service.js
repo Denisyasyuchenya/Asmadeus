@@ -1,3 +1,12 @@
+const fs = require('fs');
+const csvParser = require('csv-parser');
+const createCsvWriter = require('csv-writer').createObjectCsvWriter;
+const path = require('path');
+const dataBasePath = path.join(__dirname,'..', 'db', 'changes.db');
+const { connectToDB, disconnectFromDB } = require(path.join(__dirname,'..','db','db-service.js'));
+const { createFileLinkTable, createLogTable} = require(path.join(__dirname,'..','db','create-tables.js'));
+const { addDeleteToDB } = require(path.join(__dirname,'..','db','db-changes.js'));
+
 async function readCSVFile(filePath) {
     return new Promise((resolve, reject) => {
         const data = [];
@@ -22,26 +31,15 @@ async function emptyCheck(outputCsvPath) {
 
         if (emptyFileData.length === 0) {
             console.log(`File ${outputCsvPath} is empty.`);
+            return true;
         } else {
             console.log(`File ${outputCsvPath} is not empty.`);
+            return false;
         }
     } catch (error) {
         console.error(`Error checking file: ${error.message}`);
     }
 }
-
-const fs = require('fs');
-const csvParser = require('csv-parser');
-const createCsvWriter = require('csv-writer').createObjectCsvWriter;
-const path = require('path');
-const outputCsvPath = path.join(__dirname,'..','..','output','brand-collector.csv');
-const origFilePath = path.join(__dirname,'..','..','testfiles','orig','delete','brand-collector.csv');
-const dataBasePath = path.join(__dirname,'..', 'db', 'changes.db');
-const { connectToDB, disconnectFromDB } = require(path.join(__dirname,'..','db','db-service.js'));
-const { createFileLinkTable, createLogTable} = require(path.join(__dirname,'..','db','create-tables.js'));
-const { addDeleteToDB } = require(path.join(__dirname,'..','db','db-changes.js'));
-
-deleteCheck(outputCsvPath, origFilePath);
 
 async function deleteCheck(outputCsvPath, origFilePath) {
     const dbConnection = connectToDB(dataBasePath);
@@ -86,7 +84,7 @@ async function deleteCheck(outputCsvPath, origFilePath) {
                 }
 
                 // Добавляем зафиксированные различия в таблицу лога базы данных
-                console.log(`Adding delete log for handle: ${missingHandle}`);
+                console.log(`Adding missing data to the log table`);
                 await addDeleteToDB(db, missingHandle, origFilePathData[rowIndex], origFilePath);
             }
 
@@ -97,10 +95,42 @@ async function deleteCheck(outputCsvPath, origFilePath) {
     } catch (error) {
         console.error(`Error comparing files: ${error.message}`);
     } finally {
-        // Отключаемся от базы данных
-        console.log('Disconnecting from the database.');
         disconnectFromDB(dbConnection);
     }
+}
+
+async function sameCheck(outputCsvPath, origFilePath) {
+    try {
+        const areEqual = await compareIfEqual(outputCsvPath, origFilePath);
+
+        if (areEqual) {
+            console.log('Equal data');
+        } 
+    } catch (error) {
+        console.error(`Error comparing files: ${error.message}`);
+    }
+}
+
+async function compareIfEqual(outputCsvPath, origFilePath) {
+    const fileData = await readCSVFile(outputCsvPath);
+    const origFileData = await readCSVFile(origFilePath);
+
+    if (fileData.length !== origFileData.length) {
+        return false;
+    }
+
+    for (let rowIndex = 0; rowIndex < fileData.length; rowIndex++) {
+        const fileRow = fileData[rowIndex];
+        const origFileRow = origFileData[rowIndex];
+
+        for (let column in fileRow) {
+            if (fileRow[column] !== origFileRow[column]) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 
@@ -143,89 +173,8 @@ async function bigCheck(outputCsvPath, origFilePath) {
     }
 }
 
-//Проверка файлов на Equal. Фиксация различий (все функции ниже взаимодействуют между собой).
-// const outputCsvPath = path.join(__dirname,'..','..','output','brand-collector.csv');
-// const origFilePath = path.join(__dirname, '..','..','testfiles','orig','same','brand-collector.csv');
-// sameCheck(outputCsvPath, origFilePath);
 
-async function sameCheck(outputCsvPath, origFilePath) {
-    try {
-        const differingCells = await compareIfEqual(outputCsvPath, origFilePath);
 
-        if (!differingCells) {
-            console.log('Equal data');
-        } else {
-            console.log('Different data');
-            console.log('Differing cells:', differingCells);
-        }
-    } catch (error) {
-        console.error(`Error comparing files: ${error.message}`);
-    }
-}
-
-async function compareIfEqual(outputCsvPath, origFilePath) {
-    const fileData = await readCSVFile(outputCsvPath);
-    const origFileData = await readCSVFile(origFilePath);
-
-    if (fileData.length !== origFileData.length) {
-        return [{ message: 'Files have different number of rows' }];
-    }
-
-    const differingCells = [];
-
-    for (let rowIndex = 0; rowIndex < fileData.length; rowIndex++) {
-        const fileRow = sortRowColumns(fileData[rowIndex]);
-        const origFileRow = sortRowColumns(origFileData[rowIndex]);
-
-        if (!areRowsEqual(fileRow, origFileRow)) {
-            differingCells.push({
-                row: rowIndex,
-                differingCells: findDifferingCells(fileRow, origFileRow),
-            });
-        }
-    }
-
-    return differingCells.length > 0 ? differingCells : null;
-}
-
-function sortRowColumns(row) {
-    const sortedRow = {};
-    Object.keys(row).sort().forEach((key) => {
-        sortedRow[key] = row[key];
-    });
-    return sortedRow;
-}
-
-function areRowsEqual(row1, row2) {
-    const keys1 = Object.keys(row1).sort();
-    const keys2 = Object.keys(row2).sort();
-
-    if (keys1.length !== keys2.length) {
-        return false;
-    }
-
-    return keys1.every((key, index) => {
-        const value1 = row1[key];
-        const value2 = row2[key];
-        return value1 === value2;
-    });
-}
-
-function findDifferingCells(row1, row2) {
-    const differingCells = [];
-
-    Object.keys(row1).forEach((key) => {
-        if (row1[key] !== row2[key]) {
-            differingCells.push({
-                column: key,
-                fileValue: row1[key],
-                origFileValue: row2[key],
-            });
-        }
-    });
-
-    return differingCells;
-}
 
 
 
@@ -240,30 +189,6 @@ module.exports = {
 
 
 
-// async function changesCheck(file, origFolderPath) {
-//     try {
-//         const newData = await readCSVFile(file);
-
-//         const origFiles = await fs.readdir(origFolderPath);
-//         for (const origFile of origFiles) {
-//             const origFilePath = `${origFolderPath}/${origFile}`;
-//             const originalData = await readCSVFile(origFilePath);
-
-//             const changedRows = originalData.map(row => {
-//                 const newRow = newData.find(newRow => newRow.id === row.id);
-//                 return newRow ? { ...row, ...newRow } : row;
-//             });
-
-//             if (JSON.stringify(changedRows) !== JSON.stringify(originalData)) {
-//                 console.log(`Rows changed in ${file} compared to ${origFilePath}. Updated rows:`, changedRows);
-//             } else {
-//                 console.log(`No rows changed in ${file} compared to ${origFilePath}.`);
-//             }
-//         }
-//     } catch (error) {
-//         console.error(`Error comparing files: ${error.message}`);
-//     }
-// }
 
 
 

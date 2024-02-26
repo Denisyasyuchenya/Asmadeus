@@ -1,9 +1,12 @@
 const fs = require('fs');
-const csvParser = require('csv-parser');
-const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const path = require('path');
-const { emptyCheck, sameCheck, deleteCheck, bigCheck } = require(path.join(__dirname,'compare-domain-service.js'));
+const { emptyCheck, sameCheck, deleteCheck} = require(path.join(__dirname,'compare-domain-service.js'));
+const outputCsvPath = path.join(__dirname,'..','..','output','brand-collector.csv');
+const origFilePath = path.join(__dirname,'..','..','testfiles','orig','delete','brand-collector.csv');
 
+let firstRun = true;
+
+getCompare(outputCsvPath, origFilePath);
 async function getCompare(outputCsvPath, origFilePath) {
     try {
         console.log('Checking for empty data...');
@@ -20,13 +23,32 @@ async function getCompare(outputCsvPath, origFilePath) {
         if (!areSame) {
             console.log('Files have different data. Running deleteCheck...');
             await deleteCheck(outputCsvPath, origFilePath);
-        } else {
-            console.log('Files have identical data. Running bigCheck...');
-            await bigCheck(outputCsvPath, origFilePath);
-        }
+        } 
     } catch (error) {
         console.error(`Error during comparison: ${error.message}`);
+    } finally {
+        if (firstRun) {
+            startTimer();
+            firstRun = false;
+        }
     }
 }
 
-module.exports =  { getCompare };
+
+
+function startTimer() {
+    console.log('Timer started. Will run the code every 2 minutes.');
+    const intervalId = setInterval(async () => {
+        await getCompare(outputCsvPath, origFilePath);
+    }, 2 * 60 * 1000); 
+
+    const sixMinutes = 6 * 60 * 1000;
+    setTimeout(() => {
+        clearInterval(intervalId);
+        console.log('Timer stopped after 6 minutes. Exiting...');
+        process.exit(0);
+    }, sixMinutes); 
+}
+
+
+// module.exports =  { getCompare };

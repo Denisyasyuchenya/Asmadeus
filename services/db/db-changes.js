@@ -12,10 +12,9 @@ async function addDeleteToDB(db, handle, deletedRow, origFilePath) {
         const fileLink = path.relative(__dirname, origFilePath);
         db.run(insertFileLinkQuery, [filePath, fileLink], function (err) {
             if (err) {
-                console.error(`Error adding file link: ${err.message}`);
                 reject(err);
             } else {
-                console.log(`File link added with ID: ${this.lastID}`);
+
                 
                 // Получаем ID добавленной записи в таблицу fileLink
                 const fileLinkId = this.lastID;
